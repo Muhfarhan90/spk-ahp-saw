@@ -1,0 +1,53 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Tabel Kriteria
+// Bobot akan diisi setelah perhitungan AHP selesai
+model Criteria {
+  id          String       @id @default(cuid())
+  code        String       // Contoh: C1, C2
+  name        String       // Contoh: Biaya, Fitur
+  type        CriteriaType // BENEFIT atau COST
+  weight      Float        @default(0) // Hasil hitungan AHP disimpan di sini
+  assessments Assessment[]
+
+  @@map("criteria")
+}
+
+// Tabel Alternatif (Software Project Management)
+model Alternative {
+  id          String       @id @default(cuid())
+  name        String       // Contoh: Jira, Trello
+  assessments Assessment[]
+
+  @@map("alternatives")
+}
+
+// Tabel Penilaian (Nilai Skala Likert 1-5)
+model Assessment {
+  id            String      @id @default(cuid())
+  value         Int         // Nilai 1-5
+  
+  alternativeId String
+  alternative   Alternative @relation(fields: [alternativeId], references: [id], onDelete: Cascade)
+  
+  criteriaId    String
+  criteria      Criteria    @relation(fields: [criteriaId], references: [id], onDelete: Cascade)
+
+  @@unique([alternativeId, criteriaId]) // Mencegah duplikasi nilai
+  @@map("assessments")
+}
+
+enum CriteriaType {
+  BENEFIT
+  COST
+}
