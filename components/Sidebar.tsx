@@ -1,4 +1,3 @@
-// components/Sidebar.tsx
 "use client";
 
 import { useState } from "react";
@@ -11,6 +10,7 @@ import {
   Award,
   Menu,
   X,
+  Users,
 } from "lucide-react";
 
 const MENUS = [
@@ -21,7 +21,7 @@ const MENUS = [
 ];
 
 export default function Sidebar() {
-  const [isOpen, setIsOpen] = useState(false); // State untuk buka/tutup menu mobile
+  const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
 
   const toggleMenu = () => setIsOpen(!isOpen);
@@ -61,6 +61,22 @@ export default function Sidebar() {
             );
           })}
         </nav>
+
+        {/* Footer - Info Kelompok */}
+        <div className="p-4 border-t border-slate-800">
+          <div className="bg-slate-800 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Users size={16} className="text-blue-400" />
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                Kelompok 2
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 font-medium">Kelas SPK B</p>
+            <div className="mt-2 pt-2 border-t border-slate-700">
+              <p className="text-[10px] text-slate-500">© 2025 SPK System</p>
+            </div>
+          </div>
+        </div>
       </aside>
 
       {/* --- 2. MOBILE HEADER (Hanya muncul di layar kecil) --- */}
@@ -69,7 +85,10 @@ export default function Sidebar() {
           <div className="bg-blue-600 p-1.5 rounded">
             <Award size={20} className="text-white" />
           </div>
-          <span className="font-bold text-sm tracking-wide">SPK SYSTEM</span>
+          <div>
+            <span className="font-bold text-sm tracking-wide">SPK SYSTEM</span>
+            <p className="text-[10px] text-slate-400">Kelompok 2 - SPK B</p>
+          </div>
         </div>
 
         {/* Tombol Hamburger */}
@@ -82,11 +101,11 @@ export default function Sidebar() {
       </header>
 
       {/* --- 3. MOBILE MENU DROPDOWN --- */}
-      {/* Overlay Background (opsional, untuk efek gelap di belakang menu) */}
+      {/* Overlay Background */}
       {isOpen && (
         <div
           className="md:hidden fixed inset-0 bg-black/50 z-40"
-          onClick={closeMenu} // Klik luar untuk tutup
+          onClick={closeMenu}
         />
       )}
 
@@ -104,7 +123,7 @@ export default function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={closeMenu} // Tutup menu saat link diklik
+                onClick={closeMenu}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
                   isActive
                     ? "bg-blue-600 text-white"
@@ -117,6 +136,19 @@ export default function Sidebar() {
             );
           })}
         </nav>
+
+        {/* Footer Mobile */}
+        <div className="px-4 pb-4">
+          <div className="bg-slate-700 rounded-lg p-3 text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <Users size={14} className="text-blue-400" />
+              <span className="text-xs font-bold text-slate-300">
+                Kelompok 2
+              </span>
+            </div>
+            <p className="text-xs text-slate-400">Kelas SPK B</p>
+          </div>
+        </div>
       </div>
     </>
   );
