@@ -43,6 +43,7 @@ export default function CriteriaPage() {
   const [criteria, setCriteria] = useState<Criterion[]>([]);
   const [matrix, setMatrix] = useState<number[][]>([]);
   const [loading, setLoading] = useState(false);
+  const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
 
   const [stats, setStats] = useState({
     colSums: [] as number[],
@@ -110,9 +111,7 @@ export default function CriteriaPage() {
     });
   }, [matrix]);
 
-  // --- HANDLERS ---
   const handleMatrixChange = (row: number, col: number, value: number) => {
-    if (value <= 0) return;
     const newMatrix = [...matrix];
     newMatrix[row][col] = value;
     newMatrix[col][row] = 1 / value;
@@ -361,22 +360,60 @@ export default function CriteriaPage() {
                                 </div>
                               ) : rIdx > cIdx ? (
                                 <div className="text-center text-sm font-mono text-slate-500">
-                                  {matrix[rIdx][cIdx].toFixed(3)}
+                                  {matrix[rIdx][cIdx].toFixed(4)}
                                 </div>
                               ) : (
                                 <input
                                   type="number"
                                   min="0.1"
                                   max="9"
-                                  step="0.1"
-                                  value={matrix[rIdx][cIdx]}
-                                  onChange={(e) =>
-                                    handleMatrixChange(
-                                      rIdx,
-                                      cIdx,
-                                      parseFloat(e.target.value) || 1
-                                    )
+                                  step="0.01"
+                                  value={
+                                    inputValues[`${rIdx}-${cIdx}`] ??
+                                    matrix[rIdx][cIdx]
                                   }
+                                  onChange={(e) => {
+                                    const inputValue = e.target.value;
+                                    const key = `${rIdx}-${cIdx}`;
+
+                                    // Simpan nilai input sementara
+                                    setInputValues((prev) => ({
+                                      ...prev,
+                                      [key]: inputValue,
+                                    }));
+
+                                    // Update matrix hanya jika nilai valid
+                                    const val = parseFloat(inputValue);
+                                    if (!isNaN(val) && val > 0 && val <= 9) {
+                                      handleMatrixChange(rIdx, cIdx, val);
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    const key = `${rIdx}-${cIdx}`;
+                                    let val = parseFloat(e.target.value);
+
+                                    // Validasi dan koreksi nilai
+                                    if (isNaN(val) || val <= 0) {
+                                      val = 1;
+                                    } else if (val > 9) {
+                                      val = 9;
+                                    } else if (val < 0.1) {
+                                      val = 0.1;
+                                    }
+
+                                    handleMatrixChange(rIdx, cIdx, val);
+
+                                    // Hapus nilai input sementara
+                                    setInputValues((prev) => {
+                                      const newValues = { ...prev };
+                                      delete newValues[key];
+                                      return newValues;
+                                    });
+                                  }}
+                                  onFocus={(e) => {
+                                    // Select all saat focus untuk memudahkan edit
+                                    e.target.select();
+                                  }}
                                   className="w-full text-center font-bold text-slate-900 bg-white border-2 border-slate-300 rounded-lg py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                                 />
                               )}
