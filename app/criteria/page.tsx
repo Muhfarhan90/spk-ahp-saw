@@ -45,7 +45,10 @@ export default function CriteriaPage() {
   const [matrix, setMatrix] = useState<number[][]>([]);
   const [loading, setLoading] = useState(false);
   const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
-  const [activeCell, setActiveCell] = useState<{ row: number; col: number } | null>(null);
+  const [activeCell, setActiveCell] = useState<{
+    row: number;
+    col: number;
+  } | null>(null);
   const [savedWeights, setSavedWeights] = useState<{ [key: string]: number }>(
     {}
   );
@@ -84,11 +87,11 @@ export default function CriteriaPage() {
       setCriteria(data as Criterion[]);
 
       const n = data.length;
-      
+
       // Cek apakah ada bobot yang tersimpan
       const hasWeights = data.some((c: Criterion) => c.weight > 0);
       setHasSavedData(hasWeights);
-      
+
       // Simpan bobot yang ada di database
       const weights: { [key: string]: number } = {};
       data.forEach((c: Criterion) => {
@@ -99,10 +102,10 @@ export default function CriteriaPage() {
       // Jika ada bobot tersimpan, load matriks dari database
       if (hasWeights) {
         const savedWeightsArray = data.map((c: Criterion) => c.weight);
-        
+
         // Cek apakah ada matriks perbandingan yang tersimpan
         const hasComparisonData = data.some((c: Criterion) => c.comparisonRow);
-        
+
         if (hasComparisonData) {
           // Load matriks dari database (data asli yang disimpan)
           const loadedMatrix = data.map((c: Criterion) => {
@@ -123,7 +126,7 @@ export default function CriteriaPage() {
             .map(() => Array(n).fill(1));
           setMatrix(newMatrix);
         }
-        
+
         // Set savedStats dengan bobot yang sudah tersimpan
         setSavedStats({
           colSums: [],
@@ -146,8 +149,6 @@ export default function CriteriaPage() {
       console.error("Gagal load data:", error);
     }
   };
-
-
 
   // --- LOGIC AHP ---
   useEffect(() => {
@@ -193,8 +194,8 @@ export default function CriteriaPage() {
 
   const evaluateFraction = (input: string): number | null => {
     // Cek apakah input adalah pecahan (contoh: 3/8, 1/5)
-    if (input.includes('/')) {
-      const parts = input.split('/');
+    if (input.includes("/")) {
+      const parts = input.split("/");
       if (parts.length === 2) {
         const numerator = parseFloat(parts[0].trim());
         const denominator = parseFloat(parts[1].trim());
@@ -210,25 +211,25 @@ export default function CriteriaPage() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, row: number, col: number) => {
-    if (e.key === 'Enter' || e.key === 'Tab') {
+    if (e.key === "Enter" || e.key === "Tab") {
       e.preventDefault();
-      
+
       // Ambil nilai input saat ini
       const input = e.currentTarget as HTMLInputElement;
       const inputValue = input.value;
-      
+
       // Evaluasi pecahan atau angka
       const calculatedValue = evaluateFraction(inputValue);
-      
+
       if (calculatedValue !== null) {
         // Validasi nilai (0.1 - 9)
         let finalValue = calculatedValue;
         if (finalValue < 0.1) finalValue = 0.1;
         if (finalValue > 9) finalValue = 9;
-        
+
         // Update matrix dengan nilai yang dihitung
         handleMatrixChange(row, col, finalValue);
-        
+
         // Hapus nilai input sementara
         setInputValues((prev) => {
           const newValues = { ...prev };
@@ -236,21 +237,21 @@ export default function CriteriaPage() {
           return newValues;
         });
       }
-      
+
       moveToNextCell(row, col, e.shiftKey);
-    } else if (e.key === 'ArrowRight') {
+    } else if (e.key === "ArrowRight") {
       e.preventDefault();
       moveToNextCell(row, col, false);
-    } else if (e.key === 'ArrowLeft') {
+    } else if (e.key === "ArrowLeft") {
       e.preventDefault();
       moveToNextCell(row, col, true);
-    } else if (e.key === 'ArrowDown') {
+    } else if (e.key === "ArrowDown") {
       e.preventDefault();
       const nextRow = row + 1;
       if (nextRow < criteria.length) {
         focusCell(nextRow, col);
       }
-    } else if (e.key === 'ArrowUp') {
+    } else if (e.key === "ArrowUp") {
       e.preventDefault();
       const prevRow = row - 1;
       if (prevRow >= 0) {
@@ -259,7 +260,11 @@ export default function CriteriaPage() {
     }
   };
 
-  const moveToNextCell = (currentRow: number, currentCol: number, backward: boolean = false) => {
+  const moveToNextCell = (
+    currentRow: number,
+    currentCol: number,
+    backward: boolean = false
+  ) => {
     let nextRow = currentRow;
     let nextCol = currentCol;
 
@@ -288,15 +293,16 @@ export default function CriteriaPage() {
           }
           nextCol++;
         }
-        nextRow++
-;
+        nextRow++;
         nextCol = 0;
       }
     }
   };
 
   const focusCell = (row: number, col: number) => {
-    const input = document.getElementById(`matrix-${row}-${col}`) as HTMLInputElement;
+    const input = document.getElementById(
+      `matrix-${row}-${col}`
+    ) as HTMLInputElement;
     if (input) {
       input.focus();
       input.select();
@@ -312,11 +318,11 @@ export default function CriteriaPage() {
     try {
       await saveAhpWeights(matrix);
       alert("✅ Bobot berhasil diperbarui!");
-      
+
       // Reload data tanpa reset matriks
       const data = await getCriteriaData();
       setCriteria(data as Criterion[]);
-      
+
       // Update savedWeights
       const weights: { [key: string]: number } = {};
       data.forEach((c: Criterion) => {
@@ -324,7 +330,7 @@ export default function CriteriaPage() {
       });
       setSavedWeights(weights);
       setHasSavedData(true);
-      
+
       // Update savedStats
       const savedWeightsArray = data.map((c: Criterion) => c.weight);
       setSavedStats({
@@ -511,7 +517,8 @@ export default function CriteriaPage() {
                           Matriks Perbandingan Berpasangan
                         </h2>
                         <p className="text-xs text-slate-500 mt-0.5">
-                          Skala 1-9 atau pecahan (contoh: 3/8, 1/5) • Enter/Tab untuk pindah cell
+                          Skala 1-9 atau pecahan (contoh: 3/8, 1/5) • Enter/Tab
+                          untuk pindah cell
                         </p>
                       </div>
                     </div>
@@ -598,9 +605,14 @@ export default function CriteriaPage() {
                                   }}
                                   onBlur={(e) => {
                                     const key = `${rIdx}-${cIdx}`;
-                                    const calculatedValue = evaluateFraction(e.target.value);
-                                    
-                                    let val = calculatedValue !== null ? calculatedValue : 1;
+                                    const calculatedValue = evaluateFraction(
+                                      e.target.value
+                                    );
+
+                                    let val =
+                                      calculatedValue !== null
+                                        ? calculatedValue
+                                        : 1;
 
                                     // Validasi dan koreksi nilai
                                     if (val <= 0) {
@@ -625,12 +637,15 @@ export default function CriteriaPage() {
                                     e.target.select();
                                     setActiveCell({ row: rIdx, col: cIdx });
                                   }}
-                                  onKeyDown={(e) => handleKeyDown(e, rIdx, cIdx)}
+                                  onKeyDown={(e) =>
+                                    handleKeyDown(e, rIdx, cIdx)
+                                  }
                                   placeholder="1-9 atau 1/5"
                                   className={`w-full text-center font-bold text-slate-900 bg-white border-2 rounded-lg py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all ${
-                                    activeCell?.row === rIdx && activeCell?.col === cIdx
-                                      ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                                      : 'border-slate-300'
+                                    activeCell?.row === rIdx &&
+                                    activeCell?.col === cIdx
+                                      ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
+                                      : "border-slate-300"
                                   }`}
                                 />
                               )}
@@ -801,7 +816,10 @@ export default function CriteriaPage() {
                         const weight = savedStats.weights[idx] || 0;
                         const percentage = weight * 100;
                         return (
-                          <tr key={c.id} className="hover:bg-green-50/30 transition-colors">
+                          <tr
+                            key={c.id}
+                            className="hover:bg-green-50/30 transition-colors"
+                          >
                             <td className="px-6 py-4 text-slate-500 font-mono text-sm">
                               {idx + 1}
                             </td>
@@ -844,17 +862,26 @@ export default function CriteriaPage() {
                     </tbody>
                     <tfoot>
                       <tr className="bg-green-100 border-t-2 border-green-300">
-                        <td colSpan={3} className="px-6 py-4 text-right font-bold text-green-800 uppercase text-sm">
+                        <td
+                          colSpan={3}
+                          className="px-6 py-4 text-right font-bold text-green-800 uppercase text-sm"
+                        >
                           Total:
                         </td>
                         <td className="px-6 py-4 text-center">
                           <span className="font-mono text-base font-bold text-green-800">
-                            {savedStats.weights.reduce((a, b) => a + b, 0).toFixed(4)}
+                            {savedStats.weights
+                              .reduce((a, b) => a + b, 0)
+                              .toFixed(4)}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-center">
                           <span className="font-mono text-base font-bold text-green-800">
-                            {(savedStats.weights.reduce((a, b) => a + b, 0) * 100).toFixed(2)}%
+                            {(
+                              savedStats.weights.reduce((a, b) => a + b, 0) *
+                              100
+                            ).toFixed(2)}
+                            %
                           </span>
                         </td>
                         <td className="px-6 py-4"></td>
@@ -868,8 +895,12 @@ export default function CriteriaPage() {
                     <Info size={16} className="text-green-600 mt-0.5" />
                     <div className="flex-1">
                       <p className="text-sm text-green-800 leading-relaxed">
-                        <strong>Informasi:</strong> Bobot di atas adalah hasil perhitungan AHP yang tersimpan di database dan digunakan untuk perhitungan SAW di halaman hasil. 
-                        Jika Anda ingin mengubah bobot, silakan ubah nilai perbandingan di matriks di atas dan klik tombol &quot;Simpan Bobot AHP&quot;.
+                        <strong>Informasi:</strong> Bobot di atas adalah hasil
+                        perhitungan AHP yang tersimpan di database dan digunakan
+                        untuk perhitungan SAW di halaman hasil. Jika Anda ingin
+                        mengubah bobot, silakan ubah nilai perbandingan di
+                        matriks di atas dan klik tombol &quot;Simpan Bobot
+                        AHP&quot;.
                       </p>
                     </div>
                   </div>
@@ -890,8 +921,10 @@ export default function CriteriaPage() {
                         Bobot Belum Tersimpan
                       </h3>
                       <p className="text-sm text-orange-800 leading-relaxed">
-                        Anda belum menyimpan bobot AHP ke database. Silakan isi matriks perbandingan di atas, 
-                        pastikan nilai CR ≤ 0.1 (konsisten), lalu klik tombol <strong>"Simpan Bobot AHP"</strong> 
+                        Anda belum menyimpan bobot AHP ke database. Silakan isi
+                        matriks perbandingan di atas, pastikan nilai CR ≤ 0.1
+                        (konsisten), lalu klik tombol{" "}
+                        <strong>"Simpan Bobot AHP"</strong>
                         untuk menyimpan hasil perhitungan.
                       </p>
                     </div>

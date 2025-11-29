@@ -9,9 +9,9 @@ const prisma = new PrismaClient();
 
 export async function getCriteriaData() {
   const criteria = await prisma.criteria.findMany({
-    orderBy: { code: 'asc' }
-  })
-  return criteria
+    orderBy: { code: "asc" },
+  });
+  return criteria;
 }
 // --- ALTERNATIVES ACTIONS ---
 export async function createAlternative(formData: FormData) {
@@ -66,9 +66,9 @@ export async function saveAhpWeights(matrix: number[][]) {
   for (let i = 0; i < criteria.length; i++) {
     await prisma.criteria.update({
       where: { id: criteria[i].id },
-      data: { 
+      data: {
         weight: result.weights[i],
-        comparisonRow: JSON.stringify(matrix[i]) // Simpan baris matriks sebagai JSON
+        comparisonRow: JSON.stringify(matrix[i]), // Simpan baris matriks sebagai JSON
       },
     });
   }
@@ -78,12 +78,12 @@ export async function saveAhpWeights(matrix: number[][]) {
 }
 
 export async function createCriterion(formData: FormData) {
-  const name = formData.get('name') as string
-  const type = formData.get('type') as 'BENEFIT' | 'COST'
+  const name = formData.get("name") as string;
+  const type = formData.get("type") as "BENEFIT" | "COST";
 
   // 1. Generate Kode Otomatis (C1, C2, dst)
-  const count = await prisma.criteria.count()
-  const code = `C${count + 1}`
+  const count = await prisma.criteria.count();
+  const code = `C${count + 1}`;
 
   // 2. Buat Kriteria Baru
   const newCriteria = await prisma.criteria.create({
@@ -91,35 +91,35 @@ export async function createCriterion(formData: FormData) {
       code,
       name,
       type,
-      weight: 0 // Default bobot 0 sebelum dihitung AHP
-    }
-  })
+      weight: 0, // Default bobot 0 sebelum dihitung AHP
+    },
+  });
 
   // 3. PENTING: Isi nilai default (1) untuk semua Alternatif yang sudah ada
   // Agar tabel SAW tidak bolong/error
-  const alternatives = await prisma.alternative.findMany()
+  const alternatives = await prisma.alternative.findMany();
   if (alternatives.length > 0) {
     await prisma.assessment.createMany({
-      data: alternatives.map(alt => ({
+      data: alternatives.map((alt) => ({
         alternativeId: alt.id,
         criteriaId: newCriteria.id,
-        value: 1 // Nilai default 'Buruk'
-      }))
-    })
+        value: 1, // Nilai default 'Buruk'
+      })),
+    });
   }
 
-  revalidatePath('/criteria')
-  revalidatePath('/alternative')
-  revalidatePath('/calculation')
+  revalidatePath("/criteria");
+  revalidatePath("/alternative");
+  revalidatePath("/calculation");
 }
 
 export async function deleteCriterion(id: string) {
   // Hapus kriteria (Cascade delete akan menghapus nilai assessment terkait)
-  await prisma.criteria.delete({ where: { id } })
-  
+  await prisma.criteria.delete({ where: { id } });
+
   // Opsional: Re-index kode C1, C2 (tapi untuk simpel biarkan saja urutan DB)
-  
-  revalidatePath('/criteria')
-  revalidatePath('/alternative')
-  revalidatePath('/calculation')
+
+  revalidatePath("/criteria");
+  revalidatePath("/alternative");
+  revalidatePath("/calculation");
 }

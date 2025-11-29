@@ -89,18 +89,50 @@ async function main() {
 
   // Bulk insert criteria
   const criteriaData = [
-    { code: "C1", name: "Penggunaan (User Experience)", type: "BENEFIT", weight: weights[0], comparisonRow: JSON.stringify(comparisonMatrix[0]) },
-    { code: "C2", name: "Kolaborasi (Teamwork)", type: "BENEFIT", weight: weights[1], comparisonRow: JSON.stringify(comparisonMatrix[1]) },
-    { code: "C3", name: "Biaya (Cost)", type: "COST", weight: weights[2], comparisonRow: JSON.stringify(comparisonMatrix[2]) },
-    { code: "C4", name: "Manajemen Bug", type: "BENEFIT", weight: weights[3], comparisonRow: JSON.stringify(comparisonMatrix[3]) },
-    { code: "C5", name: "Integrasi", type: "BENEFIT", weight: weights[4], comparisonRow: JSON.stringify(comparisonMatrix[4]) },
+    {
+      code: "C1",
+      name: "Penggunaan (User Experience)",
+      type: "BENEFIT",
+      weight: weights[0],
+      comparisonRow: JSON.stringify(comparisonMatrix[0]),
+    },
+    {
+      code: "C2",
+      name: "Kolaborasi (Teamwork)",
+      type: "BENEFIT",
+      weight: weights[1],
+      comparisonRow: JSON.stringify(comparisonMatrix[1]),
+    },
+    {
+      code: "C3",
+      name: "Biaya (Cost)",
+      type: "COST",
+      weight: weights[2],
+      comparisonRow: JSON.stringify(comparisonMatrix[2]),
+    },
+    {
+      code: "C4",
+      name: "Manajemen Bug",
+      type: "BENEFIT",
+      weight: weights[3],
+      comparisonRow: JSON.stringify(comparisonMatrix[3]),
+    },
+    {
+      code: "C5",
+      name: "Integrasi",
+      type: "BENEFIT",
+      weight: weights[4],
+      comparisonRow: JSON.stringify(comparisonMatrix[4]),
+    },
   ];
 
   // createMany typing with Prisma enums can be strict in TS; ignore type-check for seeding
   // @ts-expect-error allow enum typing flex during seeding
   await prisma.criteria.createMany({ data: criteriaData });
 
-  const criteriaList = await prisma.criteria.findMany({ orderBy: { code: "asc" } });
+  const criteriaList = await prisma.criteria.findMany({
+    orderBy: { code: "asc" },
+  });
 
   // Bulk insert alternatives
   console.log(`🚀 Mengisi ${SOFTWARE_NAMES.length} Data Alternatif...`);
@@ -110,18 +142,28 @@ async function main() {
   const alternatives = await prisma.alternative.findMany();
 
   // Build assessments array (bulk), but chunk to avoid too large single query
-  const assessments: { alternativeId: string; criteriaId: string; value: number }[] = [];
+  const assessments: {
+    alternativeId: string;
+    criteriaId: string;
+    value: number;
+  }[] = [];
   for (const alt of alternatives) {
     for (const crit of criteriaList) {
       const randomScore = Math.floor(Math.random() * 5) + 1; // 1..5
-      assessments.push({ alternativeId: alt.id, criteriaId: crit.id, value: randomScore });
+      assessments.push({
+        alternativeId: alt.id,
+        criteriaId: crit.id,
+        value: randomScore,
+      });
     }
   }
 
   console.log(`🔢 Membuat ${assessments.length} penilaian (dibatch)...`);
   const chunks = chunkArray(assessments, 500); // batch size 500
   for (const [i, c] of chunks.entries()) {
-    console.log(` - Menginsert batch ${i + 1}/${chunks.length} (${c.length} items)`);
+    console.log(
+      ` - Menginsert batch ${i + 1}/${chunks.length} (${c.length} items)`
+    );
     await prisma.assessment.createMany({ data: c });
   }
 
