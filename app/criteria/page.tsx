@@ -31,6 +31,7 @@ type Criterion = {
   name: string;
   type: "BENEFIT" | "COST";
   weight: number;
+  comparisonRow?: string | null;
 };
 
 const RI_TABLE = [
@@ -44,6 +45,22 @@ export default function CriteriaPage() {
   const [matrix, setMatrix] = useState<number[][]>([]);
   const [loading, setLoading] = useState(false);
   const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
+  const [activeCell, setActiveCell] = useState<{ row: number; col: number } | null>(null);
+  const [savedWeights, setSavedWeights] = useState<{ [key: string]: number }>(
+    {}
+  );
+  const [hasSavedData, setHasSavedData] = useState(false);
+  const [savedMatrix, setSavedMatrix] = useState<number[][]>([]);
+  const [savedStats, setSavedStats] = useState({
+    colSums: [] as number[],
+    normalizedMatrix: [] as number[][],
+    weights: [] as number[],
+    lambdaMax: 0,
+    ci: 0,
+    ri: 0,
+    cr: 0,
+    isConsistent: true,
+  });
 
   const [stats, setStats] = useState({
     colSums: [] as number[],
@@ -67,14 +84,70 @@ export default function CriteriaPage() {
       setCriteria(data as Criterion[]);
 
       const n = data.length;
-      const newMatrix = Array(n)
-        .fill(0)
-        .map(() => Array(n).fill(1));
-      setMatrix(newMatrix);
+      
+      // Cek apakah ada bobot yang tersimpan
+      const hasWeights = data.some((c: Criterion) => c.weight > 0);
+      setHasSavedData(hasWeights);
+      
+      // Simpan bobot yang ada di database
+      const weights: { [key: string]: number } = {};
+      data.forEach((c: Criterion) => {
+        weights[c.id] = c.weight;
+      });
+      setSavedWeights(weights);
+
+      // Jika ada bobot tersimpan, load matriks dari database
+      if (hasWeights) {
+        const savedWeightsArray = data.map((c: Criterion) => c.weight);
+        
+        // Cek apakah ada matriks perbandingan yang tersimpan
+        const hasComparisonData = data.some((c: Criterion) => c.comparisonRow);
+        
+        if (hasComparisonData) {
+          // Load matriks dari database (data asli yang disimpan)
+          const loadedMatrix = data.map((c: Criterion) => {
+            if (c.comparisonRow) {
+              try {
+                return JSON.parse(c.comparisonRow);
+              } catch {
+                return Array(n).fill(1);
+              }
+            }
+            return Array(n).fill(1);
+          });
+          setMatrix(loadedMatrix);
+        } else {
+          // Fallback: buat matriks identitas jika data lama
+          const newMatrix = Array(n)
+            .fill(0)
+            .map(() => Array(n).fill(1));
+          setMatrix(newMatrix);
+        }
+        
+        // Set savedStats dengan bobot yang sudah tersimpan
+        setSavedStats({
+          colSums: [],
+          normalizedMatrix: [],
+          weights: savedWeightsArray,
+          lambdaMax: 0,
+          ci: 0,
+          ri: 0,
+          cr: 0,
+          isConsistent: true, // Asumsikan konsisten karena sudah tersimpan
+        });
+      } else {
+        // Jika belum ada bobot tersimpan, buat matriks identitas
+        const newMatrix = Array(n)
+          .fill(0)
+          .map(() => Array(n).fill(1));
+        setMatrix(newMatrix);
+      }
     } catch (error) {
       console.error("Gagal load data:", error);
     }
   };
+
+
 
   // --- LOGIC AHP ---
   useEffect(() => {
@@ -118,6 +191,119 @@ export default function CriteriaPage() {
     setMatrix(newMatrix);
   };
 
+  const evaluateFraction = (input: string): number | null => {
+    // Cek apakah input adalah pecahan (contoh: 3/8, 1/5)
+    if (input.includes('/')) {
+      const parts = input.split('/');
+      if (parts.length === 2) {
+        const numerator = parseFloat(parts[0].trim());
+        const denominator = parseFloat(parts[1].trim());
+        if (!isNaN(numerator) && !isNaN(denominator) && denominator !== 0) {
+          return numerator / denominator;
+        }
+      }
+      return null;
+    }
+    // Jika bukan pecahan, parse sebagai angka biasa
+    const val = parseFloat(input);
+    return isNaN(val) ? null : val;
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, row: number, col: number) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      
+      // Ambil nilai input saat ini
+      const input = e.currentTarget as HTMLInputElement;
+      const inputValue = input.value;
+      
+      // Evaluasi pecahan atau angka
+      const calculatedValue = evaluateFraction(inputValue);
+      
+      if (calculatedValue !== null) {
+        // Validasi nilai (0.1 - 9)
+        let finalValue = calculatedValue;
+        if (finalValue < 0.1) finalValue = 0.1;
+        if (finalValue > 9) finalValue = 9;
+        
+        // Update matrix dengan nilai yang dihitung
+        handleMatrixChange(row, col, finalValue);
+        
+        // Hapus nilai input sementara
+        setInputValues((prev) => {
+          const newValues = { ...prev };
+          delete newValues[`${row}-${col}`];
+          return newValues;
+        });
+      }
+      
+      moveToNextCell(row, col, e.shiftKey);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      moveToNextCell(row, col, false);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      moveToNextCell(row, col, true);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextRow = row + 1;
+      if (nextRow < criteria.length) {
+        focusCell(nextRow, col);
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevRow = row - 1;
+      if (prevRow >= 0) {
+        focusCell(prevRow, col);
+      }
+    }
+  };
+
+  const moveToNextCell = (currentRow: number, currentCol: number, backward: boolean = false) => {
+    let nextRow = currentRow;
+    let nextCol = currentCol;
+
+    if (backward) {
+      // Move backward
+      nextCol--;
+      while (nextRow >= 0) {
+        while (nextCol >= 0) {
+          if (nextRow !== nextCol && nextRow < nextCol) {
+            focusCell(nextRow, nextCol);
+            return;
+          }
+          nextCol--;
+        }
+        nextRow--;
+        nextCol = criteria.length - 1;
+      }
+    } else {
+      // Move forward
+      nextCol++;
+      while (nextRow < criteria.length) {
+        while (nextCol < criteria.length) {
+          if (nextRow !== nextCol && nextRow < nextCol) {
+            focusCell(nextRow, nextCol);
+            return;
+          }
+          nextCol++;
+        }
+        nextRow++
+;
+        nextCol = 0;
+      }
+    }
+  };
+
+  const focusCell = (row: number, col: number) => {
+    const input = document.getElementById(`matrix-${row}-${col}`) as HTMLInputElement;
+    if (input) {
+      input.focus();
+      input.select();
+      setActiveCell({ row, col });
+    }
+  };
+
   const handleSaveWeights = async () => {
     if (!stats.isConsistent && criteria.length > 2) {
       if (!confirm("Data TIDAK KONSISTEN (CR > 0.1). Tetap simpan?")) return;
@@ -126,7 +312,31 @@ export default function CriteriaPage() {
     try {
       await saveAhpWeights(matrix);
       alert("✅ Bobot berhasil diperbarui!");
-      fetchData();
+      
+      // Reload data tanpa reset matriks
+      const data = await getCriteriaData();
+      setCriteria(data as Criterion[]);
+      
+      // Update savedWeights
+      const weights: { [key: string]: number } = {};
+      data.forEach((c: Criterion) => {
+        weights[c.id] = c.weight;
+      });
+      setSavedWeights(weights);
+      setHasSavedData(true);
+      
+      // Update savedStats
+      const savedWeightsArray = data.map((c: Criterion) => c.weight);
+      setSavedStats({
+        colSums: [],
+        normalizedMatrix: [],
+        weights: savedWeightsArray,
+        lambdaMax: 0,
+        ci: 0,
+        ri: 0,
+        cr: 0,
+        isConsistent: true,
+      });
     } catch (error: any) {
       alert(`Error: ${error.message}`);
     } finally {
@@ -301,7 +511,7 @@ export default function CriteriaPage() {
                           Matriks Perbandingan Berpasangan
                         </h2>
                         <p className="text-xs text-slate-500 mt-0.5">
-                          Skala 1-9 (1=Sama penting, 9=Mutlak lebih penting)
+                          Skala 1-9 atau pecahan (contoh: 3/8, 1/5) • Enter/Tab untuk pindah cell
                         </p>
                       </div>
                     </div>
@@ -364,10 +574,8 @@ export default function CriteriaPage() {
                                 </div>
                               ) : (
                                 <input
-                                  type="number"
-                                  min="0.1"
-                                  max="9"
-                                  step="0.01"
+                                  id={`matrix-${rIdx}-${cIdx}`}
+                                  type="text"
                                   value={
                                     inputValues[`${rIdx}-${cIdx}`] ??
                                     matrix[rIdx][cIdx]
@@ -376,24 +584,26 @@ export default function CriteriaPage() {
                                     const inputValue = e.target.value;
                                     const key = `${rIdx}-${cIdx}`;
 
-                                    // Simpan nilai input sementara
+                                    // Simpan nilai input sementara (termasuk pecahan)
                                     setInputValues((prev) => ({
                                       ...prev,
                                       [key]: inputValue,
                                     }));
 
-                                    // Update matrix hanya jika nilai valid
-                                    const val = parseFloat(inputValue);
-                                    if (!isNaN(val) && val > 0 && val <= 9) {
+                                    // Update matrix hanya jika nilai valid (angka atau pecahan)
+                                    const val = evaluateFraction(inputValue);
+                                    if (val !== null && val > 0 && val <= 9) {
                                       handleMatrixChange(rIdx, cIdx, val);
                                     }
                                   }}
                                   onBlur={(e) => {
                                     const key = `${rIdx}-${cIdx}`;
-                                    let val = parseFloat(e.target.value);
+                                    const calculatedValue = evaluateFraction(e.target.value);
+                                    
+                                    let val = calculatedValue !== null ? calculatedValue : 1;
 
                                     // Validasi dan koreksi nilai
-                                    if (isNaN(val) || val <= 0) {
+                                    if (val <= 0) {
                                       val = 1;
                                     } else if (val > 9) {
                                       val = 9;
@@ -409,12 +619,19 @@ export default function CriteriaPage() {
                                       delete newValues[key];
                                       return newValues;
                                     });
+                                    setActiveCell(null);
                                   }}
                                   onFocus={(e) => {
-                                    // Select all saat focus untuk memudahkan edit
                                     e.target.select();
+                                    setActiveCell({ row: rIdx, col: cIdx });
                                   }}
-                                  className="w-full text-center font-bold text-slate-900 bg-white border-2 border-slate-300 rounded-lg py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                  onKeyDown={(e) => handleKeyDown(e, rIdx, cIdx)}
+                                  placeholder="1-9 atau 1/5"
+                                  className={`w-full text-center font-bold text-slate-900 bg-white border-2 rounded-lg py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all ${
+                                    activeCell?.row === rIdx && activeCell?.col === cIdx
+                                      ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                                      : 'border-slate-300'
+                                  }`}
                                 />
                               )}
                             </td>
@@ -529,6 +746,156 @@ export default function CriteriaPage() {
                       })}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {/* CARD: BOBOT AHP TERSIMPAN */}
+            {criteria.length >= 2 && hasSavedData && (
+              <div className="bg-white rounded-2xl shadow-sm border-2 border-green-300 overflow-hidden">
+                <div className="px-6 py-4 bg-gradient-to-r from-green-50 to-white border-b border-green-200">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="text-green-600" size={20} />
+                      <div>
+                        <h2 className="font-bold text-slate-800 text-lg">
+                          Bobot AHP Tersimpan di Database
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Hasil perhitungan bobot prioritas yang sudah disimpan
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-bold">
+                      ✓ Tersimpan
+                    </span>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-green-50 border-b-2 border-green-200">
+                        <th className="px-6 py-3 text-left text-xs font-bold text-green-700 uppercase tracking-wider w-16">
+                          No
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-bold text-green-700 uppercase tracking-wider w-24">
+                          Kode
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-green-700 uppercase tracking-wider">
+                          Nama Kriteria
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-bold text-green-700 uppercase tracking-wider w-32">
+                          Bobot (V)
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-bold text-green-700 uppercase tracking-wider w-32">
+                          Persentase
+                        </th>
+                        <th className="px-6 py-3 text-center text-xs font-bold text-green-700 uppercase tracking-wider">
+                          Visualisasi
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-green-100">
+                      {criteria.map((c, idx) => {
+                        const weight = savedStats.weights[idx] || 0;
+                        const percentage = weight * 100;
+                        return (
+                          <tr key={c.id} className="hover:bg-green-50/30 transition-colors">
+                            <td className="px-6 py-4 text-slate-500 font-mono text-sm">
+                              {idx + 1}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 rounded-lg font-mono text-sm font-bold">
+                                {c.code}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="font-semibold text-slate-800">
+                                {c.name}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className="font-mono text-base font-bold text-slate-700">
+                                {weight.toFixed(4)}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className="font-mono text-base font-bold text-green-700">
+                                {percentage.toFixed(2)}%
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="flex-1 bg-slate-200 rounded-full h-3 overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-700"
+                                    style={{ width: `${percentage}%` }}
+                                  ></div>
+                                </div>
+                                <span className="text-xs font-bold text-slate-600 w-12 text-right">
+                                  {percentage.toFixed(1)}%
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-green-100 border-t-2 border-green-300">
+                        <td colSpan={3} className="px-6 py-4 text-right font-bold text-green-800 uppercase text-sm">
+                          Total:
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <span className="font-mono text-base font-bold text-green-800">
+                            {savedStats.weights.reduce((a, b) => a + b, 0).toFixed(4)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <span className="font-mono text-base font-bold text-green-800">
+                            {(savedStats.weights.reduce((a, b) => a + b, 0) * 100).toFixed(2)}%
+                          </span>
+                        </td>
+                        <td className="px-6 py-4"></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                <div className="px-6 py-4 bg-green-50 border-t border-green-200">
+                  <div className="flex items-start gap-3">
+                    <Info size={16} className="text-green-600 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-green-800 leading-relaxed">
+                        <strong>Informasi:</strong> Bobot di atas adalah hasil perhitungan AHP yang tersimpan di database dan digunakan untuk perhitungan SAW di halaman hasil. 
+                        Jika Anda ingin mengubah bobot, silakan ubah nilai perbandingan di matriks di atas dan klik tombol &quot;Simpan Bobot AHP&quot;.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PERINGATAN JIKA BELUM ADA DATA TERSIMPAN */}
+            {criteria.length >= 2 && !hasSavedData && (
+              <div className="bg-white rounded-2xl shadow-sm border-2 border-orange-200 overflow-hidden">
+                <div className="px-6 py-4 bg-gradient-to-r from-orange-50 to-white">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-orange-100 rounded-lg">
+                      <AlertTriangle className="text-orange-600" size={20} />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-orange-900 text-base mb-1">
+                        Bobot Belum Tersimpan
+                      </h3>
+                      <p className="text-sm text-orange-800 leading-relaxed">
+                        Anda belum menyimpan bobot AHP ke database. Silakan isi matriks perbandingan di atas, 
+                        pastikan nilai CR ≤ 0.1 (konsisten), lalu klik tombol <strong>"Simpan Bobot AHP"</strong> 
+                        untuk menyimpan hasil perhitungan.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -868,6 +1235,7 @@ export default function CriteriaPage() {
                     required
                     placeholder="Contoh: Keamanan Lokasi"
                     className="w-full border-2 border-slate-300 px-4 py-3 rounded-xl text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    suppressHydrationWarning
                   />
                 </div>
 
@@ -878,6 +1246,7 @@ export default function CriteriaPage() {
                   <select
                     name="type"
                     className="w-full border-2 border-slate-300 bg-white px-4 py-3 rounded-xl text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer font-medium"
+                    suppressHydrationWarning
                   >
                     <option value="BENEFIT">
                       Benefit (Semakin tinggi semakin baik)
@@ -891,6 +1260,7 @@ export default function CriteriaPage() {
                 <button
                   type="submit"
                   className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 active:scale-[0.98] transition-all shadow-lg hover:shadow-xl flex justify-center items-center gap-2"
+                  suppressHydrationWarning
                 >
                   <PlusCircle size={18} />
                   Tambah Kriteria

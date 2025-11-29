@@ -8,6 +8,9 @@ import {
   TrendingUp,
   Target,
   CheckCircle2,
+  Calculator,
+  Eye,
+  Table2,
 } from "lucide-react";
 
 const prisma = new PrismaClient();
@@ -45,6 +48,25 @@ export default async function CalculationPage() {
   const assessmentsFlat = alternatives.flatMap((a) => a.assessments);
   const rankings = calculateSAW(altIds, criteria, assessmentsFlat);
 
+  // 3. Siapkan data detail untuk tabel
+  const detailData = alternatives.map((alt) => {
+    const ranking = rankings.find((r) => r.alternativeId === alt.id);
+    const details: any = {
+      id: alt.id,
+      name: alt.name,
+      score: ranking?.score || 0,
+      rank: rankings.findIndex((r) => r.alternativeId === alt.id) + 1,
+      criteriaValues: {},
+    };
+
+    criteria.forEach((crit) => {
+      const assessment = alt.assessments.find((a) => a.criteriaId === crit.id);
+      details.criteriaValues[crit.id] = assessment?.value || 0;
+    });
+
+    return details;
+  });
+
   // Ambil Top 1 untuk Highlight
   const winnerId = rankings[0]?.alternativeId;
   const winnerName = alternatives.find((a) => a.id === winnerId)?.name;
@@ -78,68 +100,179 @@ export default async function CalculationPage() {
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* --- KOLOM KIRI (2/3) --- */}
           <div className="xl:col-span-2 space-y-6">
-            {/* CARD: PEMENANG */}
-            {rankings.length > 0 && (
-              <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-700 rounded-2xl shadow-xl p-8 text-white relative overflow-hidden">
-                {/* Dekorasi Background */}
-                <div className="absolute top-0 right-0 -mr-10 -mt-10 w-64 h-64 bg-white opacity-5 rounded-full blur-3xl"></div>
-                <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-48 h-48 bg-white opacity-5 rounded-full blur-2xl"></div>
-
-                <div className="relative z-10">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30">
-                      <Award size={32} className="text-yellow-300" />
-                    </div>
+            {/* CARD: TABEL DETAIL PERHITUNGAN */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-white border-b border-slate-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Table2 className="text-blue-600" size={20} />
                     <div>
-                      <p className="text-blue-200 text-xs font-bold uppercase tracking-widest mb-1">
-                        🏆 Rekomendasi Terbaik
-                      </p>
-                      <h2 className="text-3xl font-bold text-white">
-                        {winnerName}
+                      <h2 className="font-bold text-slate-800 text-lg">
+                        Detail Perhitungan SAW
                       </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Nilai per kriteria dan skor akhir setiap alternatif
+                      </p>
                     </div>
                   </div>
+                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-bold">
+                    {alternatives.length} Software
+                  </span>
+                </div>
+              </div>
 
-                  <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-4 mt-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-blue-100 text-sm font-medium mb-1">
-                          Skor Akhir (SAW)
-                        </p>
-                        <p className="text-3xl font-bold text-white">
-                          {rankings[0].score.toFixed(4)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-blue-100 text-sm font-medium mb-1">
-                          Peringkat
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <span className="text-3xl font-bold text-yellow-300">
-                            #1
-                          </span>
-                          <Target size={24} className="text-yellow-300" />
-                        </div>
-                      </div>
-                    </div>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse min-w-[800px]">
+                  <thead>
+                    <tr className="bg-slate-50">
+                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase tracking-wider border-b-2 border-slate-200 w-12">
+                        Rank
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase tracking-wider border-b-2 border-slate-200 min-w-[150px]">
+                        Alternatif
+                      </th>
+                      {criteria.map((c) => (
+                        <th
+                          key={c.id}
+                          className="px-4 py-3 text-center text-xs font-bold text-slate-600 uppercase tracking-wider border-b-2 border-slate-200"
+                        >
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="font-mono text-blue-600">
+                              {c.code}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-normal normal-case">
+                              {c.name}
+                            </span>
+                          </div>
+                        </th>
+                      ))}
+                      <th className="px-4 py-3 text-center text-xs font-bold text-slate-600 uppercase tracking-wider border-b-2 border-l-2 border-slate-300 bg-blue-50">
+                        Total Skor
+                      </th>
+                    </tr>
+                    <tr className="bg-yellow-50 border-b border-yellow-200">
+                      <th
+                        colSpan={2}
+                        className="px-4 py-2 text-right text-xs font-bold text-yellow-800"
+                      >
+                        Bobot (W):
+                      </th>
+                      {criteria.map((c) => (
+                        <td
+                          key={c.id}
+                          className="px-4 py-2 text-center text-xs font-mono font-bold text-yellow-700"
+                        >
+                          {(c.weight * 100).toFixed(1)}%
+                        </td>
+                      ))}
+                      <td className="px-4 py-2 text-center text-xs font-mono font-bold text-yellow-700 border-l-2 border-yellow-200 bg-yellow-100">
+                        100%
+                      </td>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detailData
+                      .sort((a, b) => b.score - a.score)
+                      .map((detail, index) => {
+                        const isWinner = index === 0;
+                        const isTop3 = index < 3;
+
+                        return (
+                          <tr
+                            key={detail.id}
+                            className={`border-b border-slate-100 transition-colors ${
+                              isWinner ? "bg-blue-50/60" : "hover:bg-slate-50"
+                            }`}
+                          >
+                            <td className="px-4 py-3 text-center">
+                              <div
+                                className={`w-8 h-8 mx-auto flex items-center justify-center rounded-lg font-bold text-sm ${
+                                  isWinner
+                                    ? "bg-gradient-to-br from-yellow-400 to-yellow-500 text-yellow-900 shadow-md"
+                                    : index === 1
+                                    ? "bg-gradient-to-br from-slate-300 to-slate-400 text-slate-700 shadow-sm"
+                                    : index === 2
+                                    ? "bg-gradient-to-br from-orange-300 to-orange-400 text-orange-800 shadow-sm"
+                                    : "bg-slate-100 text-slate-500"
+                                }`}
+                              >
+                                {index + 1}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`font-semibold ${
+                                  isWinner
+                                    ? "text-blue-800 text-base"
+                                    : "text-slate-700 text-sm"
+                                }`}
+                              >
+                                {detail.name}
+                              </span>
+                            </td>
+                            {criteria.map((c) => (
+                              <td key={c.id} className="px-4 py-3 text-center">
+                                <span className="font-mono text-sm text-slate-600">
+                                  {detail.criteriaValues[c.id]}
+                                </span>
+                              </td>
+                            ))}
+                            <td className="px-4 py-3 text-center border-l-2 border-slate-200 bg-blue-50/30">
+                              <span
+                                className={`font-mono font-bold text-base ${
+                                  isWinner ? "text-blue-700" : "text-slate-700"
+                                }`}
+                              >
+                                {detail.score.toFixed(4)}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
+                <div className="flex items-start gap-3">
+                  <Calculator size={16} className="text-blue-600 mt-0.5" />
+                  <div className="flex-1 text-xs text-slate-600 leading-relaxed">
+                    <p className="mb-2">
+                      <strong>Cara Baca Tabel:</strong>
+                    </p>
+                    <ul className="list-disc list-inside space-y-1 text-[11px]">
+                      <li>
+                        <strong>Nilai Kriteria:</strong> Nilai mentah yang
+                        diinputkan untuk setiap kriteria (skala 1-5)
+                      </li>
+                      <li>
+                        <strong>Bobot (W):</strong> Persentase prioritas dari
+                        perhitungan AHP
+                      </li>
+                      <li>
+                        <strong>Total Skor:</strong> Hasil perhitungan SAW =
+                        Σ(Nilai Normalisasi × Bobot)
+                      </li>
+                      <li>
+                        Alternatif dengan <strong>Total Skor tertinggi</strong>{" "}
+                        adalah yang terbaik
+                      </li>
+                    </ul>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
 
-            {/* CARD: TABEL PERANKINGAN */}
+            {/* CARD: TABEL PERANKINGAN SEDERHANA */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <TrendingUp className="text-slate-400" size={20} />
                     <h2 className="font-bold text-slate-800 text-lg">
-                      Tabel Peringkat Lengkap
+                      Rangkuman Peringkat
                     </h2>
                   </div>
-                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-bold">
-                    {rankings.length} Software
-                  </span>
                 </div>
               </div>
 
@@ -235,12 +368,60 @@ export default async function CalculationPage() {
                 </table>
               </div>
             </div>
+
+            {/* CARD: PEMENANG */}
+            {rankings.length > 0 && (
+              <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-700 rounded-2xl shadow-xl p-8 text-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 -mr-10 -mt-10 w-64 h-64 bg-white opacity-5 rounded-full blur-3xl"></div>
+                <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-48 h-48 bg-white opacity-5 rounded-full blur-2xl"></div>
+
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30">
+                      <Award size={32} className="text-yellow-300" />
+                    </div>
+                    <div>
+                      <p className="text-blue-200 text-xs font-bold uppercase tracking-widest mb-1">
+                        🏆 Rekomendasi Terbaik
+                      </p>
+                      <h2 className="text-3xl font-bold text-white">
+                        {winnerName}
+                      </h2>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-4 mt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-blue-100 text-sm font-medium mb-1">
+                          Skor Akhir (SAW)
+                        </p>
+                        <p className="text-3xl font-bold text-white">
+                          {rankings[0].score.toFixed(4)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-blue-100 text-sm font-medium mb-1">
+                          Peringkat
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-3xl font-bold text-yellow-300">
+                            #1
+                          </span>
+                          <Target size={24} className="text-yellow-300" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* --- KOLOM KANAN (1/3) --- */}
           <div className="xl:col-span-1 space-y-6">
             {/* CARD: BOBOT KRITERIA */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden sticky top-6">
               <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-white border-b border-slate-200">
                 <div className="flex items-center gap-3">
                   <BarChart3 className="text-blue-600" size={20} />
@@ -268,13 +449,18 @@ export default async function CalculationPage() {
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-end gap-2">
-                        <span className="text-2xl font-bold text-blue-600">
-                          {percentage.toFixed(1)}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-slate-500">
+                          {c.type === "BENEFIT" ? "↑ Benefit" : "↓ Cost"}
                         </span>
-                        <span className="text-sm text-blue-400 mb-1">%</span>
+                        <div className="flex items-end gap-1">
+                          <span className="text-2xl font-bold text-blue-600">
+                            {percentage.toFixed(1)}
+                          </span>
+                          <span className="text-sm text-blue-400 mb-1">%</span>
+                        </div>
                       </div>
-                      <div className="w-full bg-slate-200 rounded-full h-2 mt-3 overflow-hidden">
+                      <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
                         <div
                           className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-700"
                           style={{ width: `${percentage}%` }}

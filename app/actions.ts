@@ -60,13 +60,16 @@ export async function saveAhpWeights(matrix: number[][]) {
     );
   }
 
-  // Update database dengan bobot baru
+  // Update database dengan bobot baru DAN matriks perbandingan
   const criteria = await prisma.criteria.findMany({ orderBy: { code: "asc" } });
 
   for (let i = 0; i < criteria.length; i++) {
     await prisma.criteria.update({
       where: { id: criteria[i].id },
-      data: { weight: result.weights[i] },
+      data: { 
+        weight: result.weights[i],
+        comparisonRow: JSON.stringify(matrix[i]) // Simpan baris matriks sebagai JSON
+      },
     });
   }
 

@@ -13,12 +13,13 @@ datasource db {
 // Tabel Kriteria
 // Bobot akan diisi setelah perhitungan AHP selesai
 model Criteria {
-  id          String       @id @default(cuid())
-  code        String       // Contoh: C1, C2
-  name        String       // Contoh: Biaya, Fitur
-  type        CriteriaType // BENEFIT atau COST
-  weight      Float        @default(0) // Hasil hitungan AHP disimpan di sini
-  assessments Assessment[]
+  id                String       @id @default(cuid())
+  code              String       // Contoh: C1, C2
+  name              String       // Contoh: Biaya, Fitur
+  type              CriteriaType // BENEFIT atau COST
+  weight            Float        @default(0) // Hasil hitungan AHP disimpan di sini
+  comparisonRow     String?      // Menyimpan satu baris matriks perbandingan dalam format JSON
+  assessments       Assessment[]
 
   @@map("criteria")
 }
