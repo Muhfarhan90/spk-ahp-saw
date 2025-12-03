@@ -111,7 +111,14 @@ export default function CriteriaPage() {
           const loadedMatrix = data.map((c: Criterion) => {
             if (c.comparisonRow) {
               try {
-                return JSON.parse(c.comparisonRow);
+                const row = JSON.parse(c.comparisonRow);
+                // Pastikan panjang row sesuai dengan jumlah kriteria saat ini
+                if (row.length === n) {
+                  return row;
+                } else {
+                  // Jika ukuran tidak cocok, buat row baru dengan nilai default
+                  return Array(n).fill(1);
+                }
               } catch {
                 return Array(n).fill(1);
               }
@@ -152,23 +159,39 @@ export default function CriteriaPage() {
 
   // --- LOGIC AHP ---
   useEffect(() => {
-    if (matrix.length === 0) return;
+    if (matrix.length === 0 || !matrix[0]) return;
 
     const size = matrix.length;
+
+    // Safety check: pastikan semua row memiliki panjang yang sama
+    const isValidMatrix = matrix.every((row) => row && row.length === size);
+    if (!isValidMatrix) {
+      console.warn("Invalid matrix detected, reinitializing...");
+      const newMatrix = Array(size)
+        .fill(0)
+        .map(() => Array(size).fill(1));
+      setMatrix(newMatrix);
+      return;
+    }
+
     const colSums = matrix[0].map((_, colIndex) =>
-      matrix.reduce((sum, row) => sum + row[colIndex], 0)
+      matrix.reduce((sum, row) => sum + (row[colIndex] || 1), 0)
     );
+
     const normalizedMatrix = matrix.map((row) =>
-      row.map((val, colIndex) => val / colSums[colIndex])
+      row.map((val, colIndex) => (val || 1) / colSums[colIndex])
     );
+
     const weights = normalizedMatrix.map((row) => {
       const rowSum = row.reduce((a, b) => a + b, 0);
       return rowSum / size;
     });
+
     const lambdaMax = colSums.reduce(
-      (sum, colTotal, idx) => sum + colTotal * weights[idx],
+      (sum, colTotal, idx) => sum + colTotal * (weights[idx] || 0),
       0
     );
+
     const CI = (lambdaMax - size) / (size - 1);
     const RI = RI_TABLE[size - 1] || 1.12;
     const CR = size > 2 ? CI / RI : 0;
@@ -743,7 +766,8 @@ export default function CriteriaPage() {
                                 key={col.id}
                                 className="p-3 text-center text-xs text-slate-600 font-mono"
                               >
-                                {stats.normalizedMatrix[rIdx]
+                                {stats.normalizedMatrix[rIdx] &&
+                                stats.normalizedMatrix[rIdx][cIdx] !== undefined
                                   ? stats.normalizedMatrix[rIdx][cIdx].toFixed(
                                       4
                                     )
@@ -754,7 +778,10 @@ export default function CriteriaPage() {
                               {rowSum.toFixed(4)}
                             </td>
                             <td className="p-3 text-center text-sm font-mono font-bold text-blue-700 bg-blue-50/50 border-l-2 border-blue-100">
-                              {(stats.weights[rIdx] || 0).toFixed(4)}
+                              {(stats.weights[rIdx] !== undefined
+                                ? stats.weights[rIdx]
+                                : 0
+                              ).toFixed(4)}
                             </td>
                           </tr>
                         );

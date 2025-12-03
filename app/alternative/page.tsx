@@ -7,6 +7,8 @@ import {
   Package,
   ListFilter,
 } from "lucide-react";
+import EditAlternativeButton from "./EditAlternativeButton";
+import ImportExcelButton from "./ImportExcelButton";
 
 const prisma = new PrismaClient();
 
@@ -39,9 +41,12 @@ export default async function AlternativesPage() {
                 Kelola data software yang akan dianalisis dan dinilai
               </p>
             </div>
-            <span className="hidden lg:flex items-center px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-sm font-bold border-2 border-blue-200">
-              {alternatives.length} Software
-            </span>
+            <div className="hidden lg:flex items-center gap-3">
+              <ImportExcelButton criteria={criteria} />
+              <span className="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-sm font-bold border-2 border-blue-200">
+                {alternatives.length} Software
+              </span>
+            </div>
           </div>
         </div>
 
@@ -132,33 +137,66 @@ export default async function AlternativesPage() {
                               (a) => a.criteriaId === crit.id
                             );
                             const value = assessment?.value || 0;
+
+                            // Format nilai untuk ditampilkan
+                            const displayValue =
+                              crit.type === "COST"
+                                ? new Intl.NumberFormat("id-ID").format(value) // Format ribuan
+                                : value.toString();
+
                             return (
                               <td
                                 key={crit.id}
                                 className="px-4 py-4 text-center"
                               >
-                                <span
-                                  className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold ${
-                                    value >= 4
-                                      ? "bg-green-100 text-green-700"
-                                      : value <= 2
-                                      ? "bg-red-100 text-red-700"
-                                      : value === 3
-                                      ? "bg-yellow-100 text-yellow-700"
-                                      : "bg-slate-100 text-slate-400"
-                                  }`}
-                                >
-                                  {value || "-"}
-                                </span>
+                                {crit.type === "COST" ? (
+                                  // Tampilan untuk kriteria COST (Biaya)
+                                  <span className="text-xs font-mono font-bold text-slate-700">
+                                    {displayValue}
+                                  </span>
+                                ) : (
+                                  // Tampilan untuk kriteria BENEFIT (1-5)
+                                  <span
+                                    className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold ${
+                                      value >= 4
+                                        ? "bg-green-100 text-green-700"
+                                        : value <= 2
+                                        ? "bg-red-100 text-red-700"
+                                        : value === 3
+                                        ? "bg-yellow-100 text-yellow-700"
+                                        : "bg-slate-100 text-slate-400"
+                                    }`}
+                                  >
+                                    {value || "-"}
+                                  </span>
+                                )}
                               </td>
                             );
                           })}
                           <td className="px-6 py-4 text-center">
-                            <form action={deleteAlternative.bind(null, alt.id)}>
-                              <button className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
-                                <Trash2 size={18} />
-                              </button>
-                            </form>
+                            <div className="flex items-center justify-center gap-1">
+                              <EditAlternativeButton
+                                alternative={{
+                                  id: alt.id,
+                                  name: alt.name,
+                                  assessments: alt.assessments.map((a) => ({
+                                    criteriaId: a.criteriaId,
+                                    value: a.value,
+                                  })),
+                                }}
+                                criteria={criteria}
+                              />
+                              <form
+                                action={deleteAlternative.bind(null, alt.id)}
+                              >
+                                <button
+                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                  suppressHydrationWarning
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </form>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -192,6 +230,7 @@ export default async function AlternativesPage() {
                     required
                     placeholder="Contoh: Jira, Trello..."
                     className="w-full border-2 border-slate-300 px-4 py-3 rounded-xl text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    suppressHydrationWarning
                   />
                 </div>
 
@@ -217,18 +256,34 @@ export default async function AlternativesPage() {
                             {crit.type}
                           </span>
                         </div>
-                        <select
-                          name={crit.code}
-                          className="w-full border-2 border-slate-300 bg-white text-slate-900 px-4 py-2.5 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer transition-all"
-                        >
-                          <option value="1">1 - Sangat Buruk</option>
-                          <option value="2">2 - Buruk</option>
-                          <option value="3" defaultValue="3">
-                            3 - Cukup
-                          </option>
-                          <option value="4">4 - Baik</option>
-                          <option value="5">5 - Sangat Baik</option>
-                        </select>
+                        {crit.type === "COST" ? (
+                          // Input angka untuk kriteria COST (Biaya)
+                          <input
+                            name={crit.code}
+                            type="number"
+                            min="0"
+                            step="1000"
+                            defaultValue="100000"
+                            placeholder="Contoh: 150000"
+                            className="w-full border-2 border-slate-300 bg-white text-slate-900 px-4 py-2.5 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                            suppressHydrationWarning
+                          />
+                        ) : (
+                          // Select 1-5 untuk kriteria BENEFIT
+                          <select
+                            name={crit.code}
+                            className="w-full border-2 border-slate-300 bg-white text-slate-900 px-4 py-2.5 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer transition-all"
+                            suppressHydrationWarning
+                          >
+                            <option value="1">1 - Sangat Buruk</option>
+                            <option value="2">2 - Buruk</option>
+                            <option value="3" defaultValue="3">
+                              3 - Cukup
+                            </option>
+                            <option value="4">4 - Baik</option>
+                            <option value="5">5 - Sangat Baik</option>
+                          </select>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -238,6 +293,7 @@ export default async function AlternativesPage() {
                   <button
                     type="submit"
                     className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 active:scale-[0.98] transition-all shadow-lg hover:shadow-xl flex justify-center items-center gap-2"
+                    suppressHydrationWarning
                   >
                     <PlusCircle size={18} />
                     Tambah Software
