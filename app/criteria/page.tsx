@@ -414,7 +414,7 @@ export default function CriteriaPage() {
                   {stats.isConsistent ? "Konsisten" : "Tidak Konsisten"}
                 </span>
                 <span className="opacity-60">|</span>
-                <span>CR: {stats.cr.toFixed(4)}</span>
+                <span>CR: {stats.cr.toFixed(2)}</span>
               </div>
             )}
           </div>
@@ -557,7 +557,7 @@ export default function CriteriaPage() {
                       ) : (
                         <AlertTriangle size={16} />
                       )}
-                      CR: {stats.cr.toFixed(4)}
+                      CR: {stats.cr.toFixed(2)}
                     </div>
                   </div>
                 </div>
@@ -600,7 +600,11 @@ export default function CriteriaPage() {
                                 </div>
                               ) : rIdx > cIdx ? (
                                 <div className="text-center text-sm font-mono text-slate-500">
-                                  {matrix[rIdx][cIdx].toFixed(4)}
+                                  {matrix[rIdx][cIdx] % 1 === 0
+                                    ? matrix[rIdx][cIdx].toFixed(0)
+                                    : matrix[rIdx][cIdx]
+                                        .toFixed(3)
+                                        .replace(/\.?0+$/, "")}
                                 </div>
                               ) : (
                                 <input
@@ -685,7 +689,7 @@ export default function CriteriaPage() {
                             key={idx}
                             className="p-3 text-center text-sm border-r border-blue-100 font-mono font-bold text-blue-700"
                           >
-                            {sum.toFixed(3)}
+                            {sum.toFixed(2)}
                           </td>
                         ))}
                       </tr>
@@ -769,19 +773,19 @@ export default function CriteriaPage() {
                                 {stats.normalizedMatrix[rIdx] &&
                                 stats.normalizedMatrix[rIdx][cIdx] !== undefined
                                   ? stats.normalizedMatrix[rIdx][cIdx].toFixed(
-                                      4
+                                      2
                                     )
-                                  : "0.0000"}
+                                  : "0.00"}
                               </td>
                             ))}
                             <td className="p-3 text-center text-sm font-mono font-bold text-yellow-700 bg-yellow-50/50 border-l-2 border-yellow-100">
-                              {rowSum.toFixed(4)}
+                              {rowSum.toFixed(2)}
                             </td>
                             <td className="p-3 text-center text-sm font-mono font-bold text-blue-700 bg-blue-50/50 border-l-2 border-blue-100">
                               {(stats.weights[rIdx] !== undefined
                                 ? stats.weights[rIdx]
                                 : 0
-                              ).toFixed(4)}
+                              ).toFixed(2)}
                             </td>
                           </tr>
                         );
@@ -862,12 +866,12 @@ export default function CriteriaPage() {
                             </td>
                             <td className="px-6 py-4 text-center">
                               <span className="font-mono text-base font-bold text-slate-700">
-                                {weight.toFixed(4)}
+                                {weight.toFixed(2)}
                               </span>
                             </td>
                             <td className="px-6 py-4 text-center">
                               <span className="font-mono text-base font-bold text-green-700">
-                                {percentage.toFixed(2)}%
+                                {Math.round(percentage)}%
                               </span>
                             </td>
                             <td className="px-6 py-4">
@@ -879,7 +883,7 @@ export default function CriteriaPage() {
                                   ></div>
                                 </div>
                                 <span className="text-xs font-bold text-slate-600 w-12 text-right">
-                                  {percentage.toFixed(1)}%
+                                  {Math.round(percentage)}%
                                 </span>
                               </div>
                             </td>
@@ -897,9 +901,11 @@ export default function CriteriaPage() {
                         </td>
                         <td className="px-6 py-4 text-center">
                           <span className="font-mono text-base font-bold text-green-800">
-                            {savedStats.weights
-                              .reduce((a, b) => a + b, 0)
-                              .toFixed(4)}
+                            {Math.round(
+                              savedStats.weights.reduce((a, b) => a + b, 0) *
+                                100
+                            )}
+                            %
                           </span>
                         </td>
                         <td className="px-6 py-4 text-center">
@@ -1073,7 +1079,7 @@ export default function CriteriaPage() {
                           <strong>Hasil saat ini:</strong>
                         </p>
                         <p className="font-bold text-yellow-800">
-                          λ-max = {stats.lambdaMax.toFixed(4)}
+                          λ-max = {stats.lambdaMax.toFixed(2)}
                         </p>
                       </div>
                     </div>
@@ -1108,7 +1114,7 @@ export default function CriteriaPage() {
                         <p>• λ-max = Lambda maksimum</p>
                         <p>• n = Jumlah kriteria</p>
                         <p className="font-bold text-orange-800 mt-2">
-                          CI = {stats.ci.toFixed(4)}
+                          CI = {stats.ci.toFixed(2)}
                         </p>
                       </div>
                     </div>
@@ -1182,7 +1188,7 @@ export default function CriteriaPage() {
                             Hasil Perhitungan:
                           </p>
                           <p className="font-mono">
-                            CR = {stats.ci.toFixed(4)} / {stats.ri.toFixed(2)} ={" "}
+                            CR = {stats.ci.toFixed(2)} / {stats.ri.toFixed(2)} ={" "}
                             <span
                               className={`font-bold ${
                                 stats.isConsistent
@@ -1190,7 +1196,7 @@ export default function CriteriaPage() {
                                   : "text-red-700"
                               }`}
                             >
-                              {stats.cr.toFixed(4)}
+                              {stats.cr.toFixed(2)}
                             </span>
                           </p>
                           <p
@@ -1350,7 +1356,7 @@ export default function CriteriaPage() {
                             {c.name}
                           </span>
                           <span className="font-bold text-slate-900 text-sm">
-                            {percentage.toFixed(2)}%
+                            {Math.round(percentage)}%
                           </span>
                         </div>
                         <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">

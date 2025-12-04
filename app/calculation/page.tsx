@@ -11,6 +11,7 @@ import {
   Calculator,
   Eye,
   Table2,
+  Info,
 } from "lucide-react";
 
 const prisma = new PrismaClient();
@@ -43,25 +44,70 @@ export default async function CalculationPage() {
     );
   }
 
-  // 2. Proses Perhitungan SAW
+  // 2. Calculate normalization factors per criterion
+  const normalizationFactors: {
+    [key: string]: { max: number; min: number; type: string };
+  } = {};
+
+  criteria.forEach((criterion) => {
+    const values = alternatives.map(
+      (alt) =>
+        alt.assessments.find((ass) => ass.criteriaId === criterion.id)?.value ||
+        0
+    );
+    normalizationFactors[criterion.id] = {
+      max: Math.max(...values),
+      min: Math.min(...values),
+      type: criterion.type,
+    };
+  });
+
+  // 3. Proses Perhitungan SAW
   const altIds = alternatives.map((a) => a.id);
   const assessmentsFlat = alternatives.flatMap((a) => a.assessments);
   const rankings = calculateSAW(altIds, criteria, assessmentsFlat);
 
-  // 3. Siapkan data detail untuk tabel
+  // 4. Siapkan data detail dengan nilai normalized dan weighted
   const detailData = alternatives.map((alt) => {
     const ranking = rankings.find((r) => r.alternativeId === alt.id);
-    const details: any = {
+    const details: {
+      id: string;
+      name: string;
+      score: number;
+      rank: number;
+      criteriaValues: { [key: string]: number };
+      normalizedValues: { [key: string]: number };
+      weightedValues: { [key: string]: number };
+    } = {
       id: alt.id,
       name: alt.name,
       score: ranking?.score || 0,
       rank: rankings.findIndex((r) => r.alternativeId === alt.id) + 1,
       criteriaValues: {},
+      normalizedValues: {},
+      weightedValues: {},
     };
 
     criteria.forEach((crit) => {
       const assessment = alt.assessments.find((a) => a.criteriaId === crit.id);
-      details.criteriaValues[crit.id] = assessment?.value || 0;
+      const rawValue = assessment?.value || 0;
+      const weight = crit.weight || 0;
+      const normFactor = normalizationFactors[crit.id];
+
+      details.criteriaValues[crit.id] = rawValue;
+
+      // Calculate normalized value based on criterion type
+      let normalized = 0;
+      if (normFactor.type === "BENEFIT") {
+        normalized = rawValue / normFactor.max;
+      } else {
+        // COST
+        normalized = normFactor.min / rawValue;
+      }
+      details.normalizedValues[crit.id] = normalized;
+
+      // Calculate weighted value
+      details.weightedValues[crit.id] = normalized * weight;
     });
 
     return details;
@@ -100,6 +146,68 @@ export default async function CalculationPage() {
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* --- KOLOM KIRI (2/3) --- */}
           <div className="xl:col-span-2 space-y-6">
+            {/* CARD: FORMULA EXPLANATION */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl shadow-sm border-2 border-blue-200 p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-blue-600 rounded-lg shadow-md">
+                  <Info className="text-white" size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-slate-800 text-lg mb-3">
+                    Rumus Normalisasi SAW
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="bg-white rounded-lg p-4 border border-blue-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <TrendingUp className="text-green-600" size={18} />
+                        <span className="font-semibold text-slate-700">
+                          Kriteria BENEFIT (semakin tinggi semakin baik):
+                        </span>
+                      </div>
+                      <div className="text-sm text-slate-600 ml-7">
+                        <code className="bg-slate-100 px-2 py-1 rounded text-xs">
+                          r<sub>ij</sub> = x<sub>ij</sub> / max(x<sub>j</sub>)
+                        </code>
+                        <p className="mt-2">
+                          Nilai alternatif dibagi dengan nilai maksimum
+                        </p>
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border border-blue-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Target className="text-red-600" size={18} />
+                        <span className="font-semibold text-slate-700">
+                          Kriteria COST (semakin rendah semakin baik):
+                        </span>
+                      </div>
+                      <div className="text-sm text-slate-600 ml-7">
+                        <code className="bg-slate-100 px-2 py-1 rounded text-xs">
+                          r<sub>ij</sub> = min(x<sub>j</sub>) / x<sub>ij</sub>
+                        </code>
+                        <p className="mt-2">
+                          Nilai minimum dibagi dengan nilai alternatif
+                        </p>
+                      </div>
+                    </div>
+                    <div className="bg-blue-600 text-white rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Calculator className="text-white" size={18} />
+                        <span className="font-semibold">Skor Akhir:</span>
+                      </div>
+                      <div className="text-sm ml-7">
+                        <code className="bg-blue-700 px-2 py-1 rounded text-xs">
+                          V<sub>i</sub> = Σ (w<sub>j</sub> × r<sub>ij</sub>)
+                        </code>
+                        <p className="mt-2">
+                          Total dari perkalian bobot dengan nilai normalisasi
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* CARD: TABEL DETAIL PERHITUNGAN */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-white border-b border-slate-200">
@@ -111,7 +219,8 @@ export default async function CalculationPage() {
                         Detail Perhitungan SAW
                       </h2>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Nilai per kriteria dan skor akhir setiap alternatif
+                        Nilai ternormalisasi, bobot, dan skor akhir setiap
+                        alternatif
                       </p>
                     </div>
                   </div>
@@ -131,21 +240,31 @@ export default async function CalculationPage() {
                       <th className="px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase tracking-wider border-b-2 border-slate-200 min-w-[150px]">
                         Alternatif
                       </th>
-                      {criteria.map((c) => (
-                        <th
-                          key={c.id}
-                          className="px-4 py-3 text-center text-xs font-bold text-slate-600 uppercase tracking-wider border-b-2 border-slate-200"
-                        >
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="font-mono text-blue-600">
-                              {c.code}
-                            </span>
-                            <span className="text-[10px] text-slate-500 font-normal normal-case">
-                              {c.name}
-                            </span>
-                          </div>
-                        </th>
-                      ))}
+                      {criteria.map((c) => {
+                        const normFactor = normalizationFactors[c.id];
+                        const displayValue =
+                          normFactor.type === "BENEFIT"
+                            ? `MAX: ${normFactor.max}`
+                            : `MIN: ${normFactor.min}`;
+                        return (
+                          <th
+                            key={c.id}
+                            className="px-4 py-3 text-center text-xs font-bold text-slate-600 uppercase tracking-wider border-b-2 border-slate-200"
+                          >
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="font-mono text-blue-600">
+                                {c.code}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-normal normal-case">
+                                {c.name}
+                              </span>
+                              <span className="text-[9px] text-orange-600 font-semibold mt-0.5 bg-orange-50 px-2 py-0.5 rounded">
+                                {displayValue}
+                              </span>
+                            </div>
+                          </th>
+                        );
+                      })}
                       <th className="px-4 py-3 text-center text-xs font-bold text-slate-600 uppercase tracking-wider border-b-2 border-l-2 border-slate-300 bg-blue-50">
                         Total Skor
                       </th>
@@ -162,7 +281,7 @@ export default async function CalculationPage() {
                           key={c.id}
                           className="px-4 py-2 text-center text-xs font-mono font-bold text-yellow-700"
                         >
-                          {(c.weight * 100).toFixed(1)}%
+                          {Math.round(c.weight * 100)}%
                         </td>
                       ))}
                       <td className="px-4 py-2 text-center text-xs font-mono font-bold text-yellow-700 border-l-2 border-yellow-200 bg-yellow-100">
@@ -210,13 +329,43 @@ export default async function CalculationPage() {
                                 {detail.name}
                               </span>
                             </td>
-                            {criteria.map((c) => (
-                              <td key={c.id} className="px-4 py-3 text-center">
-                                <span className="font-mono text-sm text-slate-600">
-                                  {detail.criteriaValues[c.id]}
-                                </span>
-                              </td>
-                            ))}
+                            {criteria.map((c) => {
+                              const normalized = detail.normalizedValues[c.id];
+                              const raw = detail.criteriaValues[c.id];
+                              const weighted = detail.weightedValues[c.id];
+
+                              // Format normalized: show integer if whole number, else 3 decimals
+                              const normalizedDisplay =
+                                normalized === Math.floor(normalized)
+                                  ? normalized.toString()
+                                  : normalized.toFixed(3);
+
+                              // Format weighted: show integer if whole number, else 4 decimals
+                              const weightedDisplay =
+                                weighted === Math.floor(weighted)
+                                  ? weighted.toString()
+                                  : weighted.toFixed(4);
+
+                              return (
+                                <td
+                                  key={c.id}
+                                  className="px-4 py-3 text-center"
+                                >
+                                  <div className="flex flex-col gap-1">
+                                    <span className="font-mono text-sm font-semibold text-blue-700">
+                                      {normalizedDisplay}
+                                    </span>
+                                    <span className="font-mono text-[10px] text-slate-400">
+                                      ({raw})
+                                    </span>
+                                    <span className="font-mono text-[9px] text-green-600 bg-green-50 px-1 py-0.5 rounded">
+                                      ×{Math.round(c.weight * 100)}% ={" "}
+                                      {weightedDisplay}
+                                    </span>
+                                  </div>
+                                </td>
+                              );
+                            })}
                             <td className="px-4 py-3 text-center border-l-2 border-slate-200 bg-blue-50/30">
                               <span
                                 className={`font-mono font-bold text-base ${
@@ -242,16 +391,35 @@ export default async function CalculationPage() {
                     </p>
                     <ul className="list-disc list-inside space-y-1 text-[11px]">
                       <li>
-                        <strong>Nilai Kriteria:</strong> Nilai mentah yang
-                        diinputkan untuk setiap kriteria (skala 1-5)
+                        <strong className="text-blue-700">
+                          Nilai Biru (0.xxx):
+                        </strong>{" "}
+                        Nilai ternormalisasi (0-1) hasil dari rumus normalisasi
+                      </li>
+                      <li>
+                        <strong className="text-slate-500">
+                          Nilai Abu (dalam kurung):
+                        </strong>{" "}
+                        Nilai mentah asli yang diinputkan
+                      </li>
+                      <li>
+                        <strong className="text-green-700">
+                          Nilai Hijau (×%):
+                        </strong>{" "}
+                        Hasil perkalian nilai normalisasi dengan bobot kriteria
                       </li>
                       <li>
                         <strong>Bobot (W):</strong> Persentase prioritas dari
                         perhitungan AHP
                       </li>
                       <li>
-                        <strong>Total Skor:</strong> Hasil perhitungan SAW =
-                        Σ(Nilai Normalisasi × Bobot)
+                        <strong>Total Skor:</strong> Hasil penjumlahan semua
+                        nilai hijau (weighted values)
+                      </li>
+                      <li>
+                        <strong className="text-orange-600">MIN/MAX:</strong>{" "}
+                        Nilai minimum (untuk COST) atau maksimum (untuk BENEFIT)
+                        yang digunakan dalam normalisasi
                       </li>
                       <li>
                         Alternatif dengan <strong>Total Skor tertinggi</strong>{" "}
@@ -455,7 +623,7 @@ export default async function CalculationPage() {
                         </span>
                         <div className="flex items-end gap-1">
                           <span className="text-2xl font-bold text-blue-600">
-                            {percentage.toFixed(1)}
+                            {Math.round(percentage)}
                           </span>
                           <span className="text-sm text-blue-400 mb-1">%</span>
                         </div>
